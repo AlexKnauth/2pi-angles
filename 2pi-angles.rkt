@@ -5,77 +5,75 @@
          racket/match
          racket/math
          racket/format
+         syntax/parse/define
          (for-syntax racket/base
                      ))
-
-(define-syntax (.... stx)
-  (syntax/loc stx (error "....")))
-
-(define (flatten* . args)
-  (flatten args))
 
 (define 2pi (* 2 pi))
 
 (define transparent "transparent")
 
-(define (draw-unit-circle-with-radians-in-terms-of-2pi size)
-  (define width size)
-  (define height size)
-  (define ctr-x (* 1/2 width))
-  (define ctr-y (* 1/2 height))
-  (define circle-radius (* 1/4 size))
-  (define line-length (* 11/8 circle-radius))
-  (define circle-mode "outline")
-  (define circle-color "black")
-  (define line-color "black")
-  (define text-color "black")
+(define default-angle-fractions ;'(0 1/2 1/3 2/3 1/4 3/4 1/6 5/6 1/8 3/8 5/8 7/8 1/12 5/12 7/12 11/12)
+  (remove-duplicates
+   (for*/list ([n (in-list '(1 2 3 4 6 8 12))]
+               [i (in-range n)])
+     (/ i n))))
+
+(define-simple-macro (defmulti [id:id expr:expr] ...)
+  (begin (define id expr) ...))
+
+(define (draw-unit-circle-with-radians-in-terms-of-2pi
+         #:size size
+         #:angle-fractions [angle-fractions default-angle-fractions]
+         #:2pi-text [2pi-text "2π"] ; other possible values could be "τ" or "4η", etc.
+         )
+  (defmulti
+    [width size]
+    [height size]
+    [ctr-x (* 1/2 width)]
+    [ctr-y (* 1/2 height)]
+    [circle-radius (* 1/4 size)]
+    [line-length (* 11/8 circle-radius)]
+    [circle-mode "outline"]
+    [circle-color "black"]
+    [line-color "black"]
+    [text-color "black"]
+    [mts (empty-scene width height)]
+    [circle-img (circle circle-radius circle-mode circle-color)]
+    [mts+circle (underlay mts circle-img)])
   (define (mx->cx my-x) (+ my-x ctr-x))
   (define (my->cy my-y) (+ (- my-y) ctr-y))
-  (define mts
-    (empty-scene width height))
-  (define circle-img
-    (circle circle-radius circle-mode circle-color))
-  (define mts+circle
-    (underlay mts circle-img))
-  (define angle-fractions
-    (remove-duplicates
-     (flatten*
-      (for*/list ([n (in-list '(1 2 3 4 6 8 12))]
-                  [i (in-range n)])
-        (/ i n)))))
   (for/fold ([img mts+circle])
             ([frac (in-list angle-fractions)])
-    (define angle (* frac 2pi)) ; radians
-    (define sz (/ (+ line-length (* 10 (log (/ (denominator frac)))))
-                  circle-radius))
-    (define cos-a (cos angle))
-    (define sin-a (sin angle))
-    (define line.r (* sz circle-radius))
-    (define text.r
-      (+ line.r (* 1/5 circle-radius)))
+    (defmulti
+      [angle (* frac 2pi)] ; radians
+      [sz (/ (+ line-length (* 10 (log (/ (denominator frac)))))
+             circle-radius)]
+      [cos-a (cos angle)]
+      [sin-a (sin angle)]
+      [line.r (* sz circle-radius)]
+      [text.r (+ line.r (* 1/5 circle-radius))]
+      [2pi-size (exact-round (* 1/10 line.r))]
+      [frac-size (exact-round (* 1/10 line.r))])
     (define img+line
       (scene+line img
                   ctr-x ctr-y
                   (mx->cx (* line.r cos-a)) (my->cy (* line.r sin-a))
                   line-color))
-    (define text-str
-      (cond [(= 0 frac) "0, 2π"]
-            [else (format "~a*2π" frac)]))
-    (define 2pi-size (exact-round (* 1/10 line.r)))
-    (define frac-size (exact-round (* 1/10 line.r)))
     (define text-img
-      (cond [(= 0 frac) (text "0, 2π" 2pi-size text-color)]
+      (cond [(= 0 frac) (text (format "0, ~a" 2pi-text) 2pi-size text-color)]
             [else (define n-img (text (~v (numerator frac)) frac-size text-color))
                   (define d-img (text (~v (denominator frac)) frac-size text-color))
-                  (beside (above n-img
-                                 (line (max (image-width n-img) (image-width d-img)) 0 text-color)
-                                 (line 0 1 transparent)
-                                 d-img)
-                          (line 1 0 transparent)
-                          (text "2π" 2pi-size text-color))]))
+                  (define frac-img
+                    (above n-img
+                           (line (max (image-width n-img) (image-width d-img)) 0 text-color)
+                           (line 0 1 transparent)
+                           d-img))
+                  (define 2pi-img (text 2pi-text 2pi-size text-color))
+                  (beside frac-img (line 1 0 transparent) 2pi-img)]))
     (place-image text-img
                  (mx->cx (* text.r cos-a)) (my->cy (* text.r sin-a))
                  img+line)))
 
 (module+ test
-  (draw-unit-circle-with-radians-in-terms-of-2pi 500))
+  (draw-unit-circle-with-radians-in-terms-of-2pi #:size 500))
