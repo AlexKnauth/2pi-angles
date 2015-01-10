@@ -15,9 +15,8 @@
 
 (define default-angle-fractions ;'(0 1/2 1/3 2/3 1/4 3/4 1/6 5/6 1/8 3/8 5/8 7/8 1/12 5/12 7/12 11/12)
   (remove-duplicates
-   (for*/list ([n (in-list '(1 2 3 4 6 8 12))]
-               [i (in-range n)])
-     (/ i n))))
+   (for*/list ([d (in-list '(1 2 3 4 6 8 12))] [n (in-range d)])
+     (/ n d))))
 
 (define-simple-macro (defmulti [id:id expr:expr] ...)
   (begin (define id expr) ...))
